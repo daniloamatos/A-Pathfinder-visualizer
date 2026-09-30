@@ -7,28 +7,29 @@
 #include "main.h"
 #include <chrono>
 
-
 int main()
 {
     SDL_Init(SDL_INIT_VIDEO);
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (!SDL_Init(SDL_INIT_VIDEO))
+    {
         SDL_Log("SDL_Init: %s", SDL_GetError());
         return 1;
     }
-    SDL_Window* window = SDL_CreateWindow(
+    SDL_Window *window = SDL_CreateWindow(
         "Pathfinder Visualization",
         800,
         800,
-        SDL_WINDOW_RESIZABLE
-    );
-    if (!window) {
+        SDL_WINDOW_RESIZABLE);
+    if (!window)
+    {
         SDL_Log("SDL_CreateWindow: %s", SDL_GetError());
         return 1;
     }
 
     SDL_SetWindowAspectRatio(window, 1.0f, 1.0f);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer) {
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, nullptr);
+    if (!renderer)
+    {
         SDL_Log("SDL_CreateRenderer: %s", SDL_GetError());
         return 1;
     }
@@ -38,10 +39,9 @@ int main()
     ImGui_ImplSDLRenderer3_Init(renderer);
     Grid grid;
 
-
     PathfinderState pathfinder;
 
-    const bool* keys = SDL_GetKeyboardState(nullptr);
+    const bool *keys = SDL_GetKeyboardState(nullptr);
     bool running = true;
     bool canStart = false;
     bool controlsHovered = false;
@@ -49,7 +49,7 @@ int main()
     float speed = 0.0f;
     float accumulator = 0.0f;
     float buttonsWidth = 0.0f;
-    float deltaTime;  
+    float deltaTime;
     float controlsHeight = 40.0f;
 
     std::chrono::steady_clock::time_point runStart;
@@ -58,7 +58,7 @@ int main()
     bool showResultPopup = false;
 
     double elapsedSeconds = 0.0;
-    
+
     while (running)
     {
         controlsHovered = false;
@@ -72,16 +72,16 @@ int main()
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        ImGuiIO& io = ImGui::GetIO();
+        ImGuiIO &io = ImGui::GetIO();
 
         float menuBarHeight = 0.0f;
         if (ImGui::BeginMainMenuBar())
         {
             if (ImGui::MenuItem("New"))
             {
-                for (auto& row : grid.cells)
+                for (auto &row : grid.cells)
                 {
-                    for (auto& cell : row)
+                    for (auto &cell : row)
                         cell.state = CellState::Empty;
                 }
             }
@@ -119,13 +119,11 @@ int main()
                 }
             }
 
-
             if (ImGui::MenuItem("Pause"))
             {
                 pathfinder.running = false;
                 accumulator = 0.0f;
             }
-
 
             if (ImGui::MenuItem("Stop && Clear"))
             {
@@ -138,14 +136,13 @@ int main()
                 timerRunning = false;
                 showResultPopup = false;
 
-                for (auto& row : grid.cells)
+                for (auto &row : grid.cells)
                 {
-                    for (auto& cell : row)
+                    for (auto &cell : row)
                     {
                         if (
                             cell.state == CellState::Path ||
-                            cell.state == CellState::Visited
-                        )
+                            cell.state == CellState::Visited)
                         {
                             cell.state = CellState::Empty;
                         }
@@ -155,20 +152,20 @@ int main()
             menuBarHeight = ImGui::GetFrameHeight();
 
             controlsHovered |= ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
-            
+
             ImGui::EndMainMenuBar();
         }
         if (pathfinder.running)
         {
             if (speed == 0.0f)
-                {
-                    double start = SDL_GetTicks();
+            {
+                double start = SDL_GetTicks();
 
-                    while (pathfinder.running && SDL_GetTicks() - start < 8.0)
-                    {
-                        aStar(&grid, pathfinder);
-                    }
+                while (pathfinder.running && SDL_GetTicks() - start < 8.0)
+                {
+                    aStar(&grid, pathfinder);
                 }
+            }
             else
             {
                 accumulator += ImGui::GetIO().DeltaTime * speed;
@@ -178,7 +175,6 @@ int main()
                     accumulator -= 1.0f;
                 }
             }
-
         }
         if (pathfinder.found && timerRunning)
         {
@@ -186,8 +182,8 @@ int main()
 
             elapsedSeconds =
                 std::chrono::duration<double>(
-                    runEnd - runStart
-                ).count();
+                    runEnd - runStart)
+                    .count();
 
             timerRunning = false;
             showResultPopup = true;
@@ -196,13 +192,12 @@ int main()
             pathfinder.found = false;
         }
 
-    int windowWidth, windowHeight;
-    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+        int windowWidth, windowHeight;
+        SDL_GetWindowSize(window, &windowWidth, &windowHeight);
 
-    float cellSize = std::min(
-        static_cast<float>(windowWidth) / grid.cols,
-        (static_cast<float>(windowHeight) - menuBarHeight) / grid.rows
-    );
+        float cellSize = std::min(
+            static_cast<float>(windowWidth) / grid.cols,
+            (static_cast<float>(windowHeight) - menuBarHeight) / grid.rows);
 
         const float speeds[] = {
             30.0f,
@@ -211,32 +206,28 @@ int main()
             150.5f,
             180.0f,
             240.0f,
-            0.0f
-        };
+            0.0f};
 
-        const char* labels[] = {
+        const char *labels[] = {
             "0.25x",
             "0.5x",
             "1x",
             "1.25x",
             "1.5x",
             "2x",
-            "instant"
-        };
+            "instant"};
 
         ImVec2 display = ImGui::GetIO().DisplaySize;
 
         float menuHeight = showSpeedSlider ? 35.0f : 35.0f;
-        float menuWidth  = showSpeedSlider ? 390.0f : 45.0f;
+        float menuWidth = showSpeedSlider ? 390.0f : 45.0f;
 
         // preso no canto inferior esquerdo
         ImGui::SetNextWindowPos(
-            ImVec2(5.0f, display.y - menuHeight - 5.0f)
-        );
+            ImVec2(5.0f, display.y - menuHeight - 5.0f));
 
         ImGui::SetNextWindowSize(
-            ImVec2(menuWidth, menuHeight)
-        );
+            ImVec2(menuWidth, menuHeight));
 
         ImGui::SetNextWindowBgAlpha(0.85f);
 
@@ -244,11 +235,10 @@ int main()
             "##speed-menu",
             nullptr,
             ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_NoSavedSettings
-        );
+                ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoCollapse |
+                ImGuiWindowFlags_NoSavedSettings);
 
         if (ImGui::Button(showSpeedSlider ? "v" : "^"))
             showSpeedSlider = !showSpeedSlider;
@@ -267,8 +257,7 @@ int main()
                 {
                     ImGui::PushStyleColor(
                         ImGuiCol_Button,
-                        ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)
-                    );
+                        ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
                 }
 
                 if (ImGui::Button(labels[i]))
@@ -282,119 +271,109 @@ int main()
         }
         controlsHovered |= ImGui::IsWindowHovered();
         ImGui::End();
-if (showResultPopup)
-{
-    ImGui::OpenPopup("Path found");
-    showResultPopup = false;
-}
-
-if (ImGui::BeginPopupModal(
-    "Path found",
-    nullptr,
-    ImGuiWindowFlags_AlwaysAutoResize
-))
-{
-    controlsHovered = true;
-
-    ImGui::Text(
-        "Path found in %.6f seconds",
-        elapsedSeconds
-    );
-
-    if (ImGui::Button("Close"))
-    {
-        ImGui::CloseCurrentPopup();
-    }
-
-    ImGui::EndPopup();
-}
-float mouseX, mouseY;
-
-SDL_MouseButtonFlags buttons =
-    SDL_GetMouseState(&mouseX, &mouseY);
-
-if (
-    !pathfinder.running &&
-    (buttons & SDL_BUTTON_LMASK) &&
-    !controlsHovered &&
-    mouseY >= menuBarHeight
-)
-{
-    int col = static_cast<int>(
-        (mouseY - menuBarHeight) / cellSize
-    );
-
-    int row = static_cast<int>(
-        mouseX / cellSize
-    );
-
-    if (
-        row >= 0 &&
-        row < grid.rows &&
-        col >= 0 &&
-        col < grid.cols
-    )
-    {
-        if (SDL_GetModState() & SDL_KMOD_CTRL)
+        if (showResultPopup)
         {
-            if (
-                grid.end[0] != -1 &&
-                grid.end[1] != -1
-            )
+            ImGui::OpenPopup("Path found");
+            showResultPopup = false;
+        }
+
+        if (ImGui::BeginPopupModal(
+                "Path found",
+                nullptr,
+                ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            controlsHovered = true;
+
+            ImGui::Text(
+                "Path found in %.6f seconds",
+                elapsedSeconds);
+
+            if (ImGui::Button("Close"))
             {
-                grid.cells
-                    [grid.end[0]]
-                    [grid.end[1]]
-                    .state = CellState::Empty;
+                ImGui::CloseCurrentPopup();
             }
 
-            grid.cells[col][row].state =
-                CellState::End;
-
-            grid.end[0] = col;
-            grid.end[1] = row;
+            ImGui::EndPopup();
         }
+        float mouseX, mouseY;
 
-        else if (
-            SDL_GetKeyboardState(nullptr)
-                [SDL_SCANCODE_SPACE]
-        )
-        {
-            grid.cells[col][row].state =
-                CellState::Empty;
-        }
+        SDL_MouseButtonFlags buttons =
+            SDL_GetMouseState(&mouseX, &mouseY);
 
-        else if (
-            SDL_GetModState() & SDL_KMOD_SHIFT
-        )
+        if (
+            !pathfinder.running &&
+            (buttons & SDL_BUTTON_LMASK) &&
+            !controlsHovered &&
+            mouseY >= menuBarHeight)
         {
+            int col = static_cast<int>(
+                (mouseY - menuBarHeight) / cellSize);
+
+            int row = static_cast<int>(
+                mouseX / cellSize);
+
             if (
-                grid.start[0] != -1 &&
-                grid.start[1] != -1
-            )
+                row >= 0 &&
+                row < grid.rows &&
+                col >= 0 &&
+                col < grid.cols)
             {
-                grid.cells
-                    [grid.start[0]]
-                    [grid.start[1]]
-                    .state = CellState::Empty;
+                if (SDL_GetModState() & SDL_KMOD_CTRL)
+                {
+                    if (
+                        grid.end[0] != -1 &&
+                        grid.end[1] != -1)
+                    {
+                        grid.cells
+                            [grid.end[0]]
+                            [grid.end[1]]
+                                .state = CellState::Empty;
+                    }
+
+                    grid.cells[col][row].state =
+                        CellState::End;
+
+                    grid.end[0] = col;
+                    grid.end[1] = row;
+                }
+
+                else if (
+                    SDL_GetKeyboardState(nullptr)
+                        [SDL_SCANCODE_SPACE])
+                {
+                    grid.cells[col][row].state =
+                        CellState::Empty;
+                }
+
+                else if (
+                    SDL_GetModState() & SDL_KMOD_SHIFT)
+                {
+                    if (
+                        grid.start[0] != -1 &&
+                        grid.start[1] != -1)
+                    {
+                        grid.cells
+                            [grid.start[0]]
+                            [grid.start[1]]
+                                .state = CellState::Empty;
+                    }
+
+                    grid.cells[col][row].state =
+                        CellState::Start;
+
+                    grid.start[0] = col;
+                    grid.start[1] = row;
+
+                    canStart = true;
+                }
+
+                else
+                {
+                    grid.cells[col][row].state =
+                        CellState::Obstacle;
+                }
             }
-
-            grid.cells[col][row].state =
-                CellState::Start;
-
-            grid.start[0] = col;
-            grid.start[1] = row;
-
-            canStart = true;
         }
-
-        else
-        {
-            grid.cells[col][row].state =
-                CellState::Obstacle;
-        }
-    }
-}
 
         ImGui::Render();
 
@@ -409,34 +388,33 @@ if (
                     col * cellSize,
                     menuBarHeight + row * cellSize,
                     cellSize,
-                    cellSize
-                };
+                    cellSize};
 
                 switch (grid.cells[row][col].state)
                 {
-                    case CellState::Empty:
-                        SDL_SetRenderDrawColor(renderer, 155, 155, 155, 255);
-                        break;
+                case CellState::Empty:
+                    SDL_SetRenderDrawColor(renderer, 155, 155, 155, 255);
+                    break;
 
-                    case CellState::Start:
-                        SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255);
-                        break;
+                case CellState::Start:
+                    SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255);
+                    break;
 
-                    case CellState::End:
-                        SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
-                        break;
+                case CellState::End:
+                    SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
+                    break;
 
-                    case CellState::Obstacle:
-                        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-                        break;
+                case CellState::Obstacle:
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                    break;
 
-                    case CellState::Visited:
-                        SDL_SetRenderDrawColor(renderer, 25, 50, 100, 255);
-                        break;
+                case CellState::Visited:
+                    SDL_SetRenderDrawColor(renderer, 25, 50, 100, 255);
+                    break;
 
-                    case CellState::Path:
-                        SDL_SetRenderDrawColor(renderer, 50, 100, 255, 255);
-                        break;
+                case CellState::Path:
+                    SDL_SetRenderDrawColor(renderer, 50, 100, 255, 255);
+                    break;
                 }
 
                 // cor da célula
@@ -450,8 +428,7 @@ if (
 
         ImGui_ImplSDLRenderer3_RenderDrawData(
             ImGui::GetDrawData(),
-            renderer
-        );
+            renderer);
 
         SDL_RenderPresent(renderer);
     }
