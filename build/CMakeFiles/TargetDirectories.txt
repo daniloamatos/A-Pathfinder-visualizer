@@ -1,0 +1,3 @@
+/home/danilo/projects/pathfinding/build/CMakeFiles/main.dir
+/home/danilo/projects/pathfinding/build/CMakeFiles/edit_cache.dir
+/home/danilo/projects/pathfinding/build/CMakeFiles/rebuild_cache.dir
