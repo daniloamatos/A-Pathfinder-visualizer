@@ -1,6 +1,9 @@
 #pragma once
+#include <algorithm>
 #include <vector>
 #include <list>
+#include <memory>
+#include <chrono>
 enum class CellState {
     Empty,
     Start,
@@ -20,7 +23,7 @@ struct Grid {
     int end[2] = {-1, -1};
     std::vector<std::vector<Cell>> cells;
 
-    Grid() : cells(rows, std::vector<Cell>(cols)) {}
+    Grid() : cells(cols, std::vector<Cell>(rows)) {}
 
     void resize(int newCols, int newRows)
     {
@@ -93,19 +96,19 @@ struct ListNode {
     }
 };
 
-struct PathfinderState
-{
-    bool running = false;
-    bool initialized = false;
-    bool found = false;
-};
-
-
 struct NodeHeap
 {
     std::vector<std::vector<int>> position;
     std::vector<ListNode*> nodeHeap;
+    std::vector<ListNode*> removedNodes;
     NodeHeap(int cols, int rows): position(cols, std::vector<int>(rows, -1)){};
+    ~NodeHeap()
+    {
+        for (ListNode* node : nodeHeap)
+            delete node;
+        for (ListNode* node : removedNodes)
+            delete node;
+    };
     void swapNodes(int a, int b)
     {
         std::swap(nodeHeap[a], nodeHeap[b]);
@@ -153,6 +156,11 @@ struct NodeHeap
     
     void push(ListNode* node)
     {
+        if (position[node->val[0]][node->val[1]] != -1)
+        {
+            delete node;
+            return;
+        }
         int i = nodeHeap.size();
         nodeHeap.push_back(node);
         position[node->val[0]][node->val[1]] = i;
@@ -170,6 +178,7 @@ struct NodeHeap
             swapNodes(last, 0);
             position[to_pop->val[0]][to_pop->val[1]] = -1;
             nodeHeap.pop_back();
+            removedNodes.push_back(to_pop);
             if (!empty())
                 siftDown(0);
             return to_pop;
@@ -198,6 +207,67 @@ struct NodeHeap
         return nodeHeap.size() == 0 ? true : false;
     };
         
+};
+
+// Tracks a UI search session, including pauses before the first A* step.
+struct SearchTimer
+{
+    using Clock = std::chrono::steady_clock;
+    bool active = false;
+
+    void resume(Clock::time_point now = Clock::now())
+    {
+        if (ticking)
+            return;
+        active = true;
+        ticking = true;
+        segmentStart = now;
+    }
+
+    void pause(Clock::time_point now = Clock::now())
+    {
+        if (!ticking)
+            return;
+        elapsed += now - segmentStart;
+        ticking = false;
+    }
+
+    void finish(Clock::time_point now = Clock::now())
+    {
+        pause(now);
+        active = false;
+    }
+
+    double elapsedSeconds() const
+    {
+        return std::chrono::duration<double>(elapsed).count();
+    }
+
+private:
+    bool ticking = false;
+    Clock::time_point segmentStart{};
+    Clock::duration elapsed{};
+};
+
+struct PathfinderState
+{
+    bool running = false;
+    bool initialized = false;
+    bool found = false;
+    bool noPath = false;
+    int expanded = 0;
+    int pushed = 0;
+    std::unique_ptr<NodeHeap> open;
+    std::vector<std::vector<bool>> closed;
+
+    // Pause keeps these resources; completion or cancellation releases them.
+    void releaseSearch()
+    {
+        running = false;
+        initialized = false;
+        open.reset();
+        std::vector<std::vector<bool>>().swap(closed);
+    }
 };
 
 std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state);

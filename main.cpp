@@ -5,11 +5,9 @@
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
 #include "main.h"
-#include <chrono>
 
 int main()
 {
-    SDL_Init(SDL_INIT_VIDEO);
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         SDL_Log("SDL_Init: %s", SDL_GetError());
@@ -52,12 +50,45 @@ int main()
     float deltaTime;
     float controlsHeight = 40.0f;
 
-    std::chrono::steady_clock::time_point runStart;
-
-    bool timerRunning = false;
+    SearchTimer searchTimer;
     bool showResultPopup = false;
+    bool showNoPath = false;
 
     double elapsedSeconds = 0.0;
+
+    auto clearSearch = [&]()
+    {
+        pathfinder = PathfinderState{};
+        accumulator = 0.0f;
+        searchTimer = SearchTimer{};
+        elapsedSeconds = 0.0;
+
+        for (auto &row : grid.cells)
+        {
+            for (auto &cell : row)
+            {
+                if (cell.state == CellState::Path ||
+                    cell.state == CellState::Visited)
+                    cell.state = CellState::Empty;
+            }
+        }
+    };
+
+    auto clearGrid = [&]()
+    {
+        clearSearch();
+        for (auto &column : grid.cells)
+        {
+            for (auto &cell : column)
+                cell.state = CellState::Empty;
+        }
+        grid.start[0] = -1;
+        grid.start[1] = -1;
+        grid.end[0] = -1;
+        grid.end[1] = -1;
+        canStart = false;
+        showResultPopup = false;
+    };
 
     while (running)
     {
@@ -79,11 +110,7 @@ int main()
         {
             if (ImGui::MenuItem("New"))
             {
-                for (auto &row : grid.cells)
-                {
-                    for (auto &cell : row)
-                        cell.state = CellState::Empty;
-                }
+                clearGrid();
             }
             if (ImGui::MenuItem("Exit"))
             {
@@ -91,29 +118,35 @@ int main()
             }
             if (ImGui::MenuItem("Small"))
             {
+                clearSearch();
                 grid.resize(15, 15);
             }
 
             if (ImGui::MenuItem("Medium"))
             {
+                clearSearch();
                 grid.resize(30, 30);
             }
 
             if (ImGui::MenuItem("Large"))
             {
+                clearSearch();
                 grid.resize(50, 50);
             }
             if (ImGui::MenuItem("Run"))
             {
-                if (canStart)
+                if (grid.start[0] != -1 && grid.start[1] != -1 &&
+                    grid.end[0] != -1 && grid.end[1] != -1)
                 {
-                    if (!timerRunning)
+                    if (!searchTimer.active)
                     {
-                        runStart = std::chrono::steady_clock::now();
-                        timerRunning = true;
+                        clearSearch();
                         pathfinder.found = false;
+                        pathfinder.noPath = false;
+                        showNoPath = false;
                     }
 
+                    searchTimer.resume();
                     pathfinder.running = true;
                     accumulator = 0.0f;
                 }
@@ -121,33 +154,14 @@ int main()
 
             if (ImGui::MenuItem("Pause"))
             {
+                searchTimer.pause();
                 pathfinder.running = false;
                 accumulator = 0.0f;
             }
 
             if (ImGui::MenuItem("Stop && Clear"))
             {
-                canStart = false;
-
-                pathfinder.running = false;
-                pathfinder.initialized = false;
-                pathfinder.found = false;
-
-                timerRunning = false;
-                showResultPopup = false;
-
-                for (auto &row : grid.cells)
-                {
-                    for (auto &cell : row)
-                    {
-                        if (
-                            cell.state == CellState::Path ||
-                            cell.state == CellState::Visited)
-                        {
-                            cell.state = CellState::Empty;
-                        }
-                    }
-                }
+                clearGrid();
             }
             menuBarHeight = ImGui::GetFrameHeight();
 
@@ -176,20 +190,16 @@ int main()
                 }
             }
         }
-        if (pathfinder.found && timerRunning)
+        if ((pathfinder.found || pathfinder.noPath) && searchTimer.active)
         {
-            auto runEnd = std::chrono::steady_clock::now();
-
-            elapsedSeconds =
-                std::chrono::duration<double>(
-                    runEnd - runStart)
-                    .count();
-
-            timerRunning = false;
+            searchTimer.finish();
+            elapsedSeconds = searchTimer.elapsedSeconds();
             showResultPopup = true;
+            showNoPath = pathfinder.noPath;
 
             // já capturamos o resultado
             pathfinder.found = false;
+            pathfinder.noPath = false;
         }
 
         int windowWidth, windowHeight;
@@ -273,20 +283,21 @@ int main()
         ImGui::End();
         if (showResultPopup)
         {
-            ImGui::OpenPopup("Path found");
+            ImGui::OpenPopup("Path result");
             showResultPopup = false;
         }
 
         if (ImGui::BeginPopupModal(
-                "Path found",
+                "Path result",
                 nullptr,
                 ImGuiWindowFlags_AlwaysAutoResize))
         {
             controlsHovered = true;
 
-            ImGui::Text(
-                "Path found in %.6f seconds",
-                elapsedSeconds);
+            if (showNoPath)
+                ImGui::Text("No path found in %.6f seconds", elapsedSeconds);
+            else
+                ImGui::Text("Path found in %.6f seconds", elapsedSeconds);
 
             if (ImGui::Button("Close"))
             {
@@ -301,7 +312,7 @@ int main()
             SDL_GetMouseState(&mouseX, &mouseY);
 
         if (
-            !pathfinder.running &&
+            !searchTimer.active &&
             (buttons & SDL_BUTTON_LMASK) &&
             !controlsHovered &&
             mouseY >= menuBarHeight)
@@ -330,6 +341,12 @@ int main()
                                 .state = CellState::Empty;
                     }
 
+                    if (grid.cells[col][row].state == CellState::Start)
+                    {
+                        grid.start[0] = -1;
+                        grid.start[1] = -1;
+                    }
+
                     grid.cells[col][row].state =
                         CellState::End;
 
@@ -341,6 +358,16 @@ int main()
                     SDL_GetKeyboardState(nullptr)
                         [SDL_SCANCODE_SPACE])
                 {
+                    if (grid.cells[col][row].state == CellState::Start)
+                    {
+                        grid.start[0] = -1;
+                        grid.start[1] = -1;
+                    }
+                    if (grid.cells[col][row].state == CellState::End)
+                    {
+                        grid.end[0] = -1;
+                        grid.end[1] = -1;
+                    }
                     grid.cells[col][row].state =
                         CellState::Empty;
                 }
@@ -358,6 +385,12 @@ int main()
                                 .state = CellState::Empty;
                     }
 
+                    if (grid.cells[col][row].state == CellState::End)
+                    {
+                        grid.end[0] = -1;
+                        grid.end[1] = -1;
+                    }
+
                     grid.cells[col][row].state =
                         CellState::Start;
 
@@ -369,6 +402,16 @@ int main()
 
                 else
                 {
+                    if (grid.cells[col][row].state == CellState::Start)
+                    {
+                        grid.start[0] = -1;
+                        grid.start[1] = -1;
+                    }
+                    if (grid.cells[col][row].state == CellState::End)
+                    {
+                        grid.end[0] = -1;
+                        grid.end[1] = -1;
+                    }
                     grid.cells[col][row].state =
                         CellState::Obstacle;
                 }

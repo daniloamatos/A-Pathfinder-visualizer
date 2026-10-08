@@ -1,1 +1,32 @@
-build/
+# CMake/build output
+/build/
+/build-*/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/CTestTestfile.cmake
+/Testing/
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+*.dll
+*.so
+*.so.*
+*.pdb
+
+# Release packages and downloaded SDL SDK
+/Pathfinder-*/
+/Pathfinder-*.tar.gz
+/Pathfinder-*.zip
+/pathfinder/
+/SDL3-*/
+/SDL3-devel-*.tar.gz
+
+# Local UI state and OS metadata
+imgui.ini
+*:Zone.Identifier
+.DS_Store
+Thumbs.db

@@ -32,3 +32,11 @@ target_include_directories(main PRIVATE
 target_link_libraries(main PRIVATE
     ${SDL3_LIBRARIES}
 )
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(pathfinding_tests tests/pathfinding_tests.cpp pathfinding.cpp)
+    target_include_directories(pathfinding_tests PRIVATE ${CMAKE_SOURCE_DIR} ${SDL3_INCLUDE_DIRS})
+    target_link_libraries(pathfinding_tests PRIVATE ${SDL3_LIBRARIES})
+    add_test(NAME pathfinding_lifecycle COMMAND pathfinding_tests)
+endif()
