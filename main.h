@@ -1,7 +1,6 @@
 #pragma once
 #include <algorithm>
 #include <vector>
-#include <list>
 #include <memory>
 #include <chrono>
 enum class CellState {
@@ -87,9 +86,9 @@ struct ListNode {
     float hCost;
     ListNode *parent;
     ListNode(): val{0, 0}, gCost(0.0f), hCost(0.0f),parent(nullptr) {};
-    ListNode(int x, int y): val{x, y}, hCost(0.0f), gCost(0.0f), parent(nullptr) {};
-    ListNode(int x, int y, ListNode* parent): val{x, y}, hCost(0.0f), gCost(0.0f) ,parent(parent){};
-    ListNode(int x, int y, float z, float g, ListNode* parent): val{x, y}, hCost(z), gCost(g) ,parent(parent){};
+    ListNode(int x, int y): val{x, y}, gCost(0.0f), hCost(0.0f), parent(nullptr) {};
+    ListNode(int x, int y, ListNode* parent): val{x, y}, gCost(0.0f), hCost(0.0f), parent(parent){};
+    ListNode(int x, int y, float z, float g, ListNode* parent): val{x, y}, gCost(g), hCost(z), parent(parent){};
 
     float fCost() const {
         return gCost + hCost;
@@ -140,12 +139,12 @@ struct NodeHeap
 
     void siftDown(int i)
     {
-        while (2 * i + 1 < nodeHeap.size())
+        while (2 * i + 1 < static_cast<int>(nodeHeap.size()))
         {
             int left  = 2 * i + 1;
             int right = 2 * i + 2;
             int winner = left;
-            if (right < nodeHeap.size())
+            if (right < static_cast<int>(nodeHeap.size()))
                 winner = highPriority(nodeHeap[left], nodeHeap[right]) ? left : right;
             if (!highPriority(nodeHeap[winner], nodeHeap[i]))
                 break;
@@ -209,11 +208,16 @@ struct NodeHeap
         
 };
 
-// Tracks a UI search session, including pauses before the first A* step.
+// Keeps the grid locked during a search and sums only time spent in A* steps.
 struct SearchTimer
 {
     using Clock = std::chrono::steady_clock;
     bool active = false;
+
+    void start()
+    {
+        active = true;
+    }
 
     void resume(Clock::time_point now = Clock::now())
     {
@@ -255,8 +259,6 @@ struct PathfinderState
     bool initialized = false;
     bool found = false;
     bool noPath = false;
-    int expanded = 0;
-    int pushed = 0;
     std::unique_ptr<NodeHeap> open;
     std::vector<std::vector<bool>> closed;
 
@@ -270,4 +272,4 @@ struct PathfinderState
     }
 };
 
-std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state);
+void aStar(Grid* grid, PathfinderState& state);

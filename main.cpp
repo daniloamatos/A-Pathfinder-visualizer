@@ -1,6 +1,6 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
-#include <vector>
+#include <iterator>
 #include "imgui.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
@@ -21,6 +21,7 @@ int main()
     if (!window)
     {
         SDL_Log("SDL_CreateWindow: %s", SDL_GetError());
+        SDL_Quit();
         return 1;
     }
 
@@ -29,29 +30,51 @@ int main()
     if (!renderer)
     {
         SDL_Log("SDL_CreateRenderer: %s", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
         return 1;
     }
-    ImGui::CreateContext();
+    const bool vsyncEnabled = SDL_SetRenderVSync(renderer, 1);
+    if (!ImGui::CreateContext())
+    {
+        SDL_Log("ImGui::CreateContext failed");
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
-    ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
-    ImGui_ImplSDLRenderer3_Init(renderer);
+    if (!ImGui_ImplSDL3_InitForSDLRenderer(window, renderer))
+    {
+        SDL_Log("ImGui_ImplSDL3_InitForSDLRenderer failed");
+        ImGui::DestroyContext();
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+    if (!ImGui_ImplSDLRenderer3_Init(renderer))
+    {
+        SDL_Log("ImGui_ImplSDLRenderer3_Init failed");
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
     Grid grid;
 
     PathfinderState pathfinder;
 
-    const bool *keys = SDL_GetKeyboardState(nullptr);
     bool running = true;
-    bool canStart = false;
     bool controlsHovered = false;
     bool showSpeedSlider = false;
     float speed = 0.0f;
     float accumulator = 0.0f;
-    float buttonsWidth = 0.0f;
-    float deltaTime;
-    float controlsHeight = 40.0f;
-
     SearchTimer searchTimer;
     bool showResultPopup = false;
+    bool closeResultPopup = false;
     bool showNoPath = false;
 
     double elapsedSeconds = 0.0;
@@ -62,6 +85,9 @@ int main()
         accumulator = 0.0f;
         searchTimer = SearchTimer{};
         elapsedSeconds = 0.0;
+        showResultPopup = false;
+        closeResultPopup = true;
+        showNoPath = false;
 
         for (auto &row : grid.cells)
         {
@@ -86,12 +112,25 @@ int main()
         grid.start[1] = -1;
         grid.end[0] = -1;
         grid.end[1] = -1;
-        canStart = false;
-        showResultPopup = false;
+    };
+
+    auto advanceSearch = [&]()
+    {
+        searchTimer.resume();
+        aStar(&grid, pathfinder);
+        searchTimer.pause();
+    };
+
+    auto pauseSearch = [&]()
+    {
+        searchTimer.pause();
+        pathfinder.running = false;
+        accumulator = 0.0f;
     };
 
     while (running)
     {
+        const Uint64 frameStart = SDL_GetTicks();
         controlsHovered = false;
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -103,8 +142,6 @@ int main()
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        ImGuiIO &io = ImGui::GetIO();
-
         float menuBarHeight = 0.0f;
         if (ImGui::BeginMainMenuBar())
         {
@@ -135,18 +172,19 @@ int main()
             }
             if (ImGui::MenuItem("Run"))
             {
-                if (grid.start[0] != -1 && grid.start[1] != -1 &&
+                if (pathfinder.running)
+                {
+                    pauseSearch();
+                }
+                else if (grid.start[0] != -1 && grid.start[1] != -1 &&
                     grid.end[0] != -1 && grid.end[1] != -1)
                 {
                     if (!searchTimer.active)
                     {
                         clearSearch();
-                        pathfinder.found = false;
-                        pathfinder.noPath = false;
-                        showNoPath = false;
                     }
 
-                    searchTimer.resume();
+                    searchTimer.start();
                     pathfinder.running = true;
                     accumulator = 0.0f;
                 }
@@ -154,14 +192,12 @@ int main()
 
             if (ImGui::MenuItem("Pause"))
             {
-                searchTimer.pause();
-                pathfinder.running = false;
-                accumulator = 0.0f;
+                pauseSearch();
             }
 
             if (ImGui::MenuItem("Stop && Clear"))
             {
-                clearGrid();
+                clearSearch();
             }
             menuBarHeight = ImGui::GetFrameHeight();
 
@@ -177,7 +213,7 @@ int main()
 
                 while (pathfinder.running && SDL_GetTicks() - start < 8.0)
                 {
-                    aStar(&grid, pathfinder);
+                    advanceSearch();
                 }
             }
             else
@@ -185,7 +221,7 @@ int main()
                 accumulator += ImGui::GetIO().DeltaTime * speed;
                 while (accumulator >= 1.0f && pathfinder.running)
                 {
-                    aStar(&grid, pathfinder);
+                    advanceSearch();
                     accumulator -= 1.0f;
                 }
             }
@@ -195,6 +231,7 @@ int main()
             searchTimer.finish();
             elapsedSeconds = searchTimer.elapsedSeconds();
             showResultPopup = true;
+            closeResultPopup = false;
             showNoPath = pathfinder.noPath;
 
             // já capturamos o resultado
@@ -213,7 +250,7 @@ int main()
             30.0f,
             60.0f,
             120.0f,
-            150.5f,
+            150.0f,
             180.0f,
             240.0f,
             0.0f};
@@ -229,7 +266,7 @@ int main()
 
         ImVec2 display = ImGui::GetIO().DisplaySize;
 
-        float menuHeight = showSpeedSlider ? 35.0f : 35.0f;
+        float menuHeight = 35.0f;
         float menuWidth = showSpeedSlider ? 390.0f : 45.0f;
 
         // preso no canto inferior esquerdo
@@ -257,7 +294,7 @@ int main()
 
         if (showSpeedSlider)
         {
-            for (int i = 0; i < std::size(labels); i++)
+            for (std::size_t i = 0; i < std::size(labels); i++)
             {
                 ImGui::SameLine();
 
@@ -293,19 +330,24 @@ int main()
                 ImGuiWindowFlags_AlwaysAutoResize))
         {
             controlsHovered = true;
-
-            if (showNoPath)
-                ImGui::Text("No path found in %.6f seconds", elapsedSeconds);
-            else
-                ImGui::Text("Path found in %.6f seconds", elapsedSeconds);
-
-            if (ImGui::Button("Close"))
+            if (closeResultPopup)
             {
                 ImGui::CloseCurrentPopup();
+            }
+            else
+            {
+                if (showNoPath)
+                    ImGui::Text("No path found in %.6f seconds", elapsedSeconds);
+                else
+                    ImGui::Text("Path found in %.6f seconds", elapsedSeconds);
+
+                if (ImGui::Button("Close"))
+                    ImGui::CloseCurrentPopup();
             }
 
             ImGui::EndPopup();
         }
+        closeResultPopup = false;
         float mouseX, mouseY;
 
         SDL_MouseButtonFlags buttons =
@@ -397,7 +439,6 @@ int main()
                     grid.start[0] = col;
                     grid.start[1] = row;
 
-                    canStart = true;
                 }
 
                 else
@@ -474,6 +515,12 @@ int main()
             renderer);
 
         SDL_RenderPresent(renderer);
+        if (!vsyncEnabled)
+        {
+            const Uint64 frameDuration = SDL_GetTicks() - frameStart;
+            if (frameDuration < 16)
+                SDL_Delay(static_cast<Uint32>(16 - frameDuration));
+        }
     }
 
     ImGui_ImplSDLRenderer3_Shutdown();

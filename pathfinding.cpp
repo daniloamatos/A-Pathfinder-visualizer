@@ -2,20 +2,15 @@
 #include <vector>
 #include "main.h"
 #include <cmath>
-#include <queue>
-#include <iostream>
-#include <SDL3/SDL.h>
 
 
-std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state)
+void aStar(Grid* grid, PathfinderState& state)
 {
     int height = grid->cols;
     int width = grid->rows;
     float diagonalCost = std::sqrt(2.0f);
-    int& expanded = state.expanded;
-    int& pushed = state.pushed;
     int directions[8][2] = {{-1, -1}, {-1, 0}, {-1, 1},
-                            { 0, -1},           { 0, 1},
+                           { 0, -1},           { 0, 1},
                             { 1, -1}, { 1, 0},  { 1, 1}};
 
     //hCost calculator
@@ -39,8 +34,6 @@ std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state)
 
     if (!state.initialized)
     {
-        expanded = 0;
-        pushed = 0;
         state.found = false;
         state.noPath = false;
         //nodes to be processed
@@ -52,7 +45,6 @@ std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state)
             node->gCost = 0.0f;
             node->hCost = hCostCalc(grid->start[0], grid->start[1]);
             open->push(node);
-            pushed++;
 
         state.initialized = true;
     }
@@ -60,19 +52,12 @@ std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state)
     {
         state.noPath = true;
         state.releaseSearch();
-        return {};
+        return;
     }
         
     ListNode* node = open->pop();
     if (closed[node->val[0]][node->val[1]])
-        return {};
-    SDL_Log(
-        "(%d,%d) g=%.2f h=%.2f f=%.2f",
-        node->val[0], node->val[1],
-        node->gCost, node->hCost, node->fCost()
-    );
-    expanded++;
-
+        return;
     // O destino só é confirmado quando chega ao topo da heap. Isso preserva
     // a garantia de optimalidade do A*.
     if (node->val[0] == grid->end[0] && node->val[1] == grid->end[1])
@@ -87,10 +72,9 @@ std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state)
                 grid->cells[x][y].state = CellState::Path;
         }
 
-        SDL_Log("expanded: %d | pushed: %d", expanded, pushed);
         state.found = true;
         state.releaseSearch();
-        return {};
+        return;
     }
 
     for(int i = 0; i < 8; i++)
@@ -116,14 +100,10 @@ std::vector<ListNode*> aStar(Grid* grid, PathfinderState& state)
                 open->decreaseKey(x, y, newGCost, node);
         }
         else
-        {
             open->push(new ListNode(x, y, hCostCalc(x,y), newGCost, node));
-            pushed++;
-        }
 
         
     }
     closed[node->val[0]][node->val[1]] = true;
-return {};
 }
 
